@@ -1,0 +1,83 @@
+translation_unit
+ type_specifier
+  void
+ declarator
+  TK_ID (foo)
+  (
+  )
+ compound_statement
+  {
+  statement
+   compound_statement
+    {
+    statement
+     compound_statement
+      {
+      statement
+       if
+       (
+       statement
+        TK_INT (1)
+       )
+       statement
+        compound_statement
+         {
+         statement
+          while
+          (
+          statement
+           TK_INT (1)
+          )
+          statement
+           compound_statement
+            {
+            statement
+             if
+             (
+             statement
+              TK_INT (0)
+             )
+             statement
+              compound_statement
+               {
+               statement
+                statement
+                 TK_INT (10)
+                ;
+               statement
+                statement
+                 TK_STRING ("hello, world\n")
+                ;
+               statement
+                statement
+                 TK_CHAR ('\n')
+                ;
+               }
+             else
+             statement
+              compound_statement
+               {
+               statement
+                return
+                ;
+               }
+            }
+         }
+      }
+    }
+  }
+ type_specifier
+  int
+ declarator
+  TK_ID (main)
+  (
+  )
+ compound_statement
+  {
+  statement
+   statement
+    TK_ID (foo)
+    (
+    )
+   ;
+  }

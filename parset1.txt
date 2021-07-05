@@ -1,0 +1,6 @@
+translation_unit
+ type_specifier
+  int
+ declarator
+  TK_ID (foo)
+ ;

@@ -235,57 +235,264 @@ consume_token (enum token_kind kind)
 }
 
 //追加部
+static struct AST* parse_type_specifier();
+static struct AST* parse_declarator();
+static struct AST* parse_exp();
+static struct AST* parse_statement();
+static struct AST* parse_compound_statement();
 static struct AST*
 parse_type_specifier (void) 
 {
-    struct AST *ast;
+    struct AST *ast, *ast1;
     ast = create_AST ("type_specifier", 0);
-    next_token(); // 次に進む
+    switch (lookahead (1)) {
+        // "void"の場合
+        case TK_KW_VOID:
+            consume_token(TK_KW_VOID);
+            ast1 = create_AST ("void", 0);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // "char"の場合
+        case TK_KW_CHAR:
+            consume_token(TK_KW_CHAR);
+            ast1 = create_AST ("char", 0);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // "int"の場合
+        case TK_KW_INT:
+            consume_token(TK_KW_INT);
+            ast1 = create_AST ("int", 0);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // "long"の場合
+        case TK_KW_LONG:
+            consume_token(TK_KW_LONG);
+            ast1 = create_AST ("long", 0);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        default:
+            break;
+    }
     return ast;
 }
 static struct AST*
-parse_declarator() 
+parse_declarator(void) 
 {
     struct AST *ast, *ast1;
     ast = create_AST ("declarator", 0);
     // IDENTIFIERの追加(1回限り)
-    ast1 = create_leaf ("TK_ID", token_p[tokens_index-1].lexeme);
+    consume_token (TK_ID);
+    ast1 = create_leaf ("TK_ID", tokens[tokens_index-1].lexeme);
     ast = add_AST (ast, 1, ast1);
-    next_token(); //次に進む
     // ["(" ")"]の追加(オプション)
-    if (lookahead(1)==40) {
+    if (lookahead(1)=='(') {
         struct AST *ast2, *ast3;
+        consume_token ('(');
         ast2 = create_AST ("(", 0);
-        next_token();
+        consume_token (')');
         ast3 = create_AST (")", 0);
-        next_token();
         ast = add_AST (ast, 2, ast2, ast3);
     }
     return ast;
 }
 static struct AST*
-parse_compound_statement()
+parse_exp(void)
+{
+    struct AST *ast, *ast1, *ast2, *ast3, *ast4, *ast5;
+    ast = create_AST ("exp", 0);
+    switch (lookahead (1)) {
+        // INTEGERの場合
+        case TK_INT:
+            consume_token(TK_INT);
+            ast1 = create_leaf ("TK_INT", tokens[tokens_index-1].lexeme);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // CHARACTERの場合
+        case TK_CHAR:
+            consume_token(TK_CHAR);
+            ast1 = create_leaf ("TK_CHAR", tokens[tokens_index-1].lexeme);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // STRINGの場合
+        case TK_STRING:
+            consume_token(TK_STRING);
+            ast1 = create_leaf ("TK_STRING", tokens[tokens_index-1].lexeme);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // IDENTIFIERの場合
+        case TK_ID:
+            consume_token(TK_ID);
+            ast1 = create_leaf ("TK_ID", tokens[tokens_index-1].lexeme);
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // ("(" exp ")")の場合
+        case '(':
+            consume_token('(');
+            ast1 = create_leaf ("(", tokens[tokens_index-1].lexeme);
+            ast2 = parse_exp();
+            consume_token(')');
+            ast3 = create_leaf (")", tokens[tokens_index-1].lexeme);
+            ast = add_AST (ast, 3, ast1, ast2, ast3);
+            break;
+        default:
+            break;
+    }
+    // ["(" ")"]の追加(オプション)
+    if (lookahead(1)=='(') {
+        consume_token ('(');
+        ast4 = create_AST ("(", 0);
+        consume_token (')');
+        ast5 = create_AST (")", 0);
+        ast = add_AST (ast, 2, ast4, ast5);
+    }
+    return ast;
+}
+static struct AST*
+parse_statement(void)
+{
+    struct AST *ast, *ast1, *ast2, *ast3, *ast4, *ast5, *ast6, *ast7;
+    ast = create_AST ("statement", 0);
+    // (IDENTIFIER ":")の場合　※":"まで読む必要あり！！！
+    if (lookahead(1)==TK_ID && lookahead(2)==':') {
+        consume_token(TK_ID);
+        ast1 = create_leaf ("TK_ID", tokens[tokens_index-1].lexeme);
+        consume_token(':');
+        ast2 = create_AST (":", 0);
+        ast = add_AST (ast, 2, ast1, ast2);
+        return ast;
+    }
+    switch (lookahead (1)) {
+        // compound_statementの場合
+        case '{':
+            ast1 = parse_compound_statement();
+            ast = add_AST (ast, 1, ast1);
+            break;
+        // "if" "(" exp ")" statement [ "else" statement ]の場合
+        case TK_KW_IF:
+            consume_token(TK_KW_IF);
+            ast1 = create_AST ("if", 0);
+            consume_token('(');
+            ast2 = create_AST ("(", 0);
+            ast3 = parse_exp();
+            consume_token(')');
+            ast4 = create_AST (")", 0);
+            ast5 = parse_statement();
+            ast = add_AST (ast, 5, ast1, ast2, ast3, ast4, ast5);
+            // elseの追加(オプション)
+            if (lookahead(1)==TK_KW_ELSE) {
+                consume_token(TK_KW_ELSE);
+                ast6 = create_AST ("else", 0);
+                ast7 = parse_statement();
+                ast = add_AST (ast, 2, ast6, ast7);
+            }
+            break;
+        // ("while" "(" exp ")" statement)の場合
+        case TK_KW_WHILE:
+            consume_token(TK_KW_WHILE);
+            ast1 = create_AST ("while", 0);
+            consume_token('(');
+            ast2 = create_AST ("(", 0);
+            ast3 = parse_exp();
+            consume_token(')');
+            ast4 = create_AST (")", 0);
+            ast5 = parse_statement();
+            ast = add_AST (ast, 5, ast1, ast2, ast3, ast4, ast5);
+            break;
+        // ("goto" IDENTIFIER ";")の場合
+        case TK_KW_GOTO:
+            consume_token(TK_KW_GOTO);
+            ast1 = create_AST ("goto", 0);
+            consume_token(TK_ID);
+            ast2 = create_leaf ("TK_ID", tokens[tokens_index-1].lexeme);
+            consume_token (';');
+            ast3 = create_AST (";", 0);
+            ast = add_AST (ast, 3, ast1, ast2, ast3);
+            break;
+        // ("return" [ exp ] ";")の場合
+        case TK_KW_RETURN:
+            consume_token(TK_KW_RETURN);
+            ast1 = create_AST ("return", 0);
+            ast = add_AST (ast, 1, ast1);
+            // expの追加(オプション)
+            switch (lookahead(1)) {
+                case TK_INT: case TK_CHAR: case TK_STRING: case TK_ID: case '(':
+                    ast2 = parse_exp();
+                    ast = add_AST (ast, 1, ast2);
+                    break;
+                default:
+                    break;
+            }
+            consume_token (';');
+            ast3 = create_AST (";", 0);
+            ast = add_AST (ast, 1, ast3);
+            break;
+        //  ([ exp ] ";")の場合
+        case TK_INT: case TK_CHAR: case TK_STRING: case TK_ID: case '(': case ';':
+            // expの追加(オプション)
+            switch (lookahead(1)) {
+                case TK_INT: case TK_CHAR: case TK_STRING: case TK_ID: case '(':
+                    ast1 = parse_exp();
+                    ast = add_AST (ast, 1, ast1);
+                    break;
+                default:
+                    break;
+            }
+            consume_token (';');
+            ast2 = create_AST (";", 0);
+            ast = add_AST (ast, 1, ast2);
+        default:
+            break;
+    }
+    return ast;
+}
+static struct AST*
+parse_compound_statement(void)
 {
     struct AST *ast, *ast1, *ast2, *ast3, *ast4, *ast5, *ast6;
     ast = create_AST ("compound_statement", 0);
     // "{"の追加(1回限り)
+    consume_token('{');
     ast1 = create_AST ("{", 0);
     ast = add_AST (ast, 1, ast1);
-    next_token();
+    while(1) {
+    switch (lookahead(1)) {
     // (type_specifier declarator ";")*の追加(ループ)
-    ast2 = parse_type_specifier();
-    ast3 = parse_declarator();
-    consume_token (';');
-    ast4 = create_AST (";", 0);
-    next_token();
-    ast = add_AST (ast, 3, ast2, ast3, ast4);
+    case TK_KW_VOID: case TK_KW_CHAR: case TK_KW_INT: case TK_KW_LONG:
+        ast2 = parse_type_specifier();
+        ast3 = parse_declarator();
+        switch(lookahead(1)) {
+            case ';':
+                consume_token (';');
+                ast4 = create_AST (";", 0);
+                ast = add_AST (ast, 3, ast2, ast3, ast4);
+                break;
+            case '{':
+                ast4 = parse_compound_statement();
+                ast = add_AST (ast, 3, ast2, ast3, ast4);
+                break;
+        }
+        break;
+    default:
+        goto loop_exit1;
+    }
+    }
+loop_exit1:
+    while(1) {
+    switch (lookahead(1)) {
     // (statement)*の追加(ループ)
-    //ast5 = parse_statement();
-    //ast = add_AST (ast, 1, ast5);
+    case TK_ID: case '{': case TK_KW_IF: case TK_KW_WHILE: case TK_KW_GOTO: case TK_KW_RETURN: case ';': case TK_INT: case TK_CHAR: case TK_STRING: case '(':
+        ast5 = parse_statement();
+        ast = add_AST (ast, 1, ast5);
+        break;
+    case '}': default:
+        goto loop_exit2;
+    }
+    }
+loop_exit2:
     // "}"の追加(1回限り)
+    consume_token('}');
     ast6 = create_AST ("}", 0);
     ast = add_AST (ast, 1, ast6);
-    next_token();
     return ast;
 }
 // translation_unit: ( type_specifier declarator ( ";" | compound_statement ))*
@@ -293,13 +500,10 @@ static struct AST*
 parse_translation_unit (void)
 {
     struct AST *ast, *ast1, *ast2, *ast3;
-
     ast = create_AST ("translation_unit", 0);
-    //debug
     while (1) {
         switch (lookahead (1)) {
-        case TK_KW_INT: case TK_KW_CHAR: case TK_KW_VOID:
-            // parse_type_specifier などのコードを書く
+        case TK_KW_VOID: case TK_KW_CHAR: case TK_KW_INT: case TK_KW_LONG:
             ast1 = parse_type_specifier ();
             ast2 = parse_declarator ();
             switch (lookahead (1)) {
@@ -600,12 +804,12 @@ unparse_error (struct AST *ast)
     exit (1);
 }
 
+int is_else_if = 0; // "else if"構文かどうかを保管する変数
 static void
 unparse_AST (struct AST *ast, int depth)
 {
-    int i;
     if (!strcmp (ast->ast_type, "translation_unit")) {
-        for (i = 0; i < ast->num_child; i++) {
+        for (int i = 0; i < ast->num_child; i++) {
             printf_ns (depth, "");
             unparse_AST (ast->child [i],   depth+1);
             unparse_AST (ast->child [i+1], depth+1);
@@ -620,10 +824,161 @@ unparse_AST (struct AST *ast, int depth)
             }
             i+=2;
         }
-/*
-  ここにコードを書く
- */
-    } else {
+    }
+    else if(!strcmp (ast->ast_type, "type_specifier")) {
+        printf ("%s", ast->child[0]->ast_type);
+        printf (" ");
+    }
+    else if(!strcmp (ast->ast_type, "declarator")) {
+        printf ("%s", ast->child[0]->lexeme);
+        //()がある場合
+        if(ast->num_child>=2) {
+            printf (" ");
+            printf ("%s", ast->child[1]->ast_type);
+            printf ("%s", ast->child[2]->ast_type);
+        }
+    }
+    else if(!strcmp (ast->ast_type, "exp")) {
+        int i=0;
+        if (!strcmp(ast->child[0]->ast_type,"TK_INT")||!strcmp(ast->child[0]->ast_type,"TK_CHAR")||!strcmp(ast->child[0]->ast_type,"TK_STRING")||!strcmp(ast->child[0]->ast_type,"TK_ID")) {
+            printf ("%s", ast->child[0]->lexeme);
+            i++;
+        }
+        else if(!strcmp(ast->child[0]->ast_type,"(")) {
+            printf ("(");
+            unparse_AST(ast->child[1], depth);
+            printf (")");
+            i+=3;
+        }
+        if (ast->num_child==i+2) {
+            printf (" ()");
+        }
+    }
+    else if(!strcmp (ast->ast_type, "statement")) {
+        int isValid = 1;
+        // (IDENTIFIER ":")の場合
+        if(ast->num_child==2) {
+            if(!strcmp (ast->child[0]->ast_type,"TK_ID") && !strcmp (ast->child[1]->ast_type,":")) {
+                printf ("%s :\n", ast->child[0]->lexeme);
+                isValid = 0;
+            }
+        }
+        if (!isValid) {
+            //既に処理済
+        }
+        // compound_statemetの場合
+        else if(!strcmp (ast->child[0]->ast_type,"compound_statement")) {
+            unparse_AST (ast->child[0], depth);
+        }
+        // ("if" "(" exp ")" statement [ "else" statement ])の場合
+        else if(!strcmp (ast->child[0]->ast_type,"if")) {
+            if(!is_else_if) printf_ns (depth, ""); //else if構文の時はインデント出力しない
+            else is_else_if = 0;
+            printf ("if (");
+            unparse_AST (ast->child[2], depth);
+            printf (")\n");
+            // ぶらぶらelse対策の"{","}"だが、後続がcompound_statementの時はcompound_statement側に任せる
+            if (!strcmp(ast->child[4]->child[0]->ast_type,"compound_statement")) {
+                unparse_AST (ast->child[4], depth);
+            }
+            else {
+                printf_ns (depth, "");
+                printf ("{\n");
+                unparse_AST (ast->child[4], depth+1);
+                printf_ns (depth, "");
+                printf ("}\n");
+            }
+            if (ast->num_child==7) {
+                printf_ns (depth, "");
+                printf ("else");
+                // ぶらぶらelse対策の"{","}"だが、後続がcompound_statementの時はcompound_statement側に任せる
+                // 加えて"else if"となる時も冗長な"{","}"を省略し改行→空白出力に変更する
+                if (!strcmp(ast->child[6]->child[0]->ast_type,"compound_statement")){
+                    printf("\n");
+                    unparse_AST (ast->child[6], depth);
+                }
+                else if(!strcmp(ast->child[6]->child[0]->ast_type,"if")) {
+                    printf(" ");
+                    is_else_if = 1; //is_else_ifの値を1に設定
+                    unparse_AST (ast->child[6], depth);
+                }
+                else {
+                    printf("\n");
+                    printf_ns (depth, "");
+                    printf ("{\n");
+                    unparse_AST (ast->child[6], depth+1);
+                    printf_ns (depth, "");
+                    printf ("}\n");
+                }
+            }
+        }
+        // ("while" "(" exp ")" statement)の場合
+        else if(!strcmp (ast->child[0]->ast_type,"while")) {
+            printf_ns (depth, "");
+            printf ("while (");
+            unparse_AST (ast->child[2], depth);
+            printf (")\n");
+            // ぶらぶらelse対策の"{","}"だが、後続がcompound_statementの時はcompound_statement側に任せる
+            if (!strcmp(ast->child[4]->child[0]->ast_type,"compound_statement")) {
+                unparse_AST (ast->child[4], depth);
+            }
+            else {
+                printf_ns (depth, "");
+                printf ("{\n");
+                unparse_AST (ast->child[4], depth+1);
+                printf_ns (depth, "");
+                printf ("}\n");
+            }
+        }
+        // ("goto" IDENTIFIER ";")の場合
+        else if(!strcmp (ast->child[0]->ast_type,"goto")) {
+            printf_ns (depth, "");
+            printf ("goto %s;\n",ast->child[1]->lexeme);
+        }
+        // ("return" [ exp ] ";")の場合
+        else if(!strcmp (ast->child[0]->ast_type,"return")) {
+            printf_ns (depth, "");
+            printf ("return");
+            if (ast->num_child==3) {
+                printf (" ");
+                unparse_AST (ast->child[1], depth);
+            }
+            printf (";\n");
+        }
+        // ([ exp ] ";")の場合
+        else if(!strcmp (ast->child[0]->ast_type,"exp") || !strcmp (ast->child[0]->ast_type,";")) {
+            printf_ns (depth, "");
+            if (!strcmp (ast->child[0]->ast_type,"exp")) {
+                unparse_AST (ast->child[0], depth);
+            }
+            printf (";\n");
+        }
+        else {
+            unparse_error (ast);
+        }
+    }
+    else if(!strcmp (ast->ast_type, "compound_statement")) {
+        printf_ns (depth, "");
+        printf ("{\n");
+        for (int i = 1; i < ast->num_child-1; i++) {
+            if (!strcmp (ast->child[i]->ast_type, "type_specifier")) {
+                printf_ns (depth+1, "");
+                unparse_AST (ast->child [i], depth+1);
+                unparse_AST (ast->child [i+1], depth+1);
+                printf (";\n");
+                i+=2;
+            }
+            else if(!strcmp (ast->child[i]->ast_type, "statement")) {
+                unparse_AST (ast->child[i], depth+1);
+            }
+            else {
+                unparse_error (ast);
+            }
+        }
+        printf_ns (depth, "");
+        printf ("}\n");
+    }
+    else {
         unparse_error (ast);
     }
 }
@@ -642,9 +997,9 @@ int main (int argc, char *argv[])
     ptr = map_file (argv [1]);
     create_tokens (ptr);
     reset_tokens ();
-    dump_tokens ();    // 提出時はコメントアウトしておくこと
+    //dump_tokens ();    // 提出時はコメントアウトしておくこと
     ast = parse_translation_unit ();
-    show_AST (ast, 0); // 提出時はコメントアウトしておくこと
-    //unparse_AST (ast, 0);
+    //show_AST (ast, 0); // 提出時はコメントアウトしておくこと
+    unparse_AST (ast, 0);
 }
 
